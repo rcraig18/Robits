@@ -1,0 +1,219 @@
+#include <Ultrasonic.h>
+
+#define DIR_R_A 8
+#define DIR_R_B 7
+#define ENB_R 5
+
+#define DIR_L_A 9
+#define DIR_L_B 11
+#define ENB_L 6
+
+#define US_F_A A5 //Echo F
+#define US_F_B A4 //Trig F
+
+#define US_L_A A3 //Trig L
+#define US_L_B A2 //Trig L
+
+#define Threshold 15
+
+Ultrasonic leftSensor(US_L_A,  US_L_B, 10000UL);
+Ultrasonic frontSensor(US_F_A, US_F_B, 10000UL);
+//int repLArray[] = [1,2,3,4,5,6,7,8,9,0];
+//int repRArray[] = [1,2,3,4,5,6,7,8,9,0];
+
+int counterF = 0;
+int counterL = 0;
+int currentValueF; //this should be the Front Sensor Reading
+int currentValueL; //this should be the Left Sensor Reading
+int lastValueF; // past reading front
+int lastValueL; // past reading left
+int stuckThresh = 3;
+int stuckMax = 20;
+
+void setup() {
+  // put your setup code here, to run once:
+
+  /**
+   * HIGH + LOW = TURN CLOCKWISE
+   * LOW + HIGH = TURN ANTICLOCKWISE 
+   * LOW + LOW = MOTOR OFF
+   */
+
+   Serial.begin(9600);
+
+  // Right Motors
+  pinMode(DIR_R_A, OUTPUT);
+  pinMode(DIR_R_B, OUTPUT);
+  pinMode(ENB_R, OUTPUT);
+
+  // Left Motors
+  pinMode(DIR_L_A, OUTPUT);
+  pinMode(DIR_L_B, OUTPUT);
+  pinMode(ENB_L, OUTPUT);
+
+  lastValueF = 0;
+  lastValueL = 0;
+}
+
+void loop() {
+  int distanceFront = frontSensor.read();
+  int distanceLeft = leftSensor.read();
+  int exSpeed = 100;
+
+  if (check(distanceFront,distanceLeft)){
+    return;
+  }
+
+  movementDecision(distanceFront,distanceLeft);
+    
+}
+
+void movementDecision(int distanceFront, int distanceLeft){
+    if(distanceFront < Threshold){
+    if(distanceLeft < Threshold){
+      turnRight(100);
+    }else{
+      turnLeft(100);
+    }
+  }
+  else
+  {
+    //move forward
+    goForward(100);
+    delay(50);
+    stop();
+  }
+}
+
+void turn(int distanceLeft){
+      if(distanceLeft < Threshold){ //if left is lower than the threshold, eg at a wall
+      turnRight(100); 
+    }else{
+      turnLeft(100);
+    }
+}
+
+
+void start(int exSpeed){
+    analogWrite(ENB_R, exSpeed);
+    analogWrite(ENB_L, exSpeed);  
+}
+
+
+void stop() {
+    analogWrite(ENB_R, 0);
+    analogWrite(ENB_L, 0);
+}
+
+
+void goForward(int exSpeed) {
+    start(exSpeed);
+    digitalWrite(DIR_R_A, HIGH);
+    digitalWrite(DIR_R_B, LOW);
+    digitalWrite(DIR_L_A, HIGH);
+    digitalWrite(DIR_L_B, LOW);
+}
+
+void goBackwards(int exSpeed) {
+  start(exSpeed);
+  digitalWrite(DIR_R_A, LOW);
+  digitalWrite(DIR_R_B, HIGH);
+  digitalWrite(DIR_L_A, LOW);
+  digitalWrite(DIR_L_B, HIGH);
+}
+
+
+void turnLeft(int exSpeed) {
+    stop();
+    analogWrite(ENB_R,exSpeed);
+    analogWrite(ENB_L,exSpeed);
+    digitalWrite(DIR_R_A, HIGH);
+    digitalWrite(DIR_R_B, LOW);
+    digitalWrite(DIR_L_A, LOW);
+    digitalWrite(DIR_L_B, HIGH);
+    delay(200);
+    //analogWrite(ENB_R, 0);
+}
+
+
+void turnRight(int exSpeed) {
+    stop();
+    analogWrite(ENB_L,exSpeed);
+    analogWrite(ENB_R,exSpeed);
+    digitalWrite(DIR_L_A, HIGH);
+    digitalWrite(DIR_L_B, LOW);
+    digitalWrite(DIR_R_A, LOW);
+    digitalWrite(DIR_R_B, HIGH);
+    delay(200);
+    //analogWrite(ENB_L, 0);
+}
+
+boolean check(int front, int left){
+  currentValueF = front;
+  currentValueL = left;
+  
+  if (currentValueF <= (lastValueF+stuckThresh) && currentValueF >= (lastValueF-stuckThresh)){
+    counterF++;  
+  } else {
+    resetFront();
+  }
+
+  Serial.print("Front value: ");
+//  Serial.println(currentValueF);
+  Serial.println(counterF);
+  
+  if (currentValueL <= (lastValueL+stuckThresh) && currentValueL >= (lastValueL-stuckThresh)){
+    counterL++;
+  } else {
+    resetLeft();
+  }
+
+  Serial.print("Left value: ");
+//  Serial.println(currentValueL);
+  Serial.println(counterL);
+
+  lastValueF = currentValueF;
+  lastValueL = currentValueL;
+  
+  if (counterF > stuckMax && counterL > stuckMax) {
+    escape();
+    return true;
+  }
+    return false;
+  }
+  
+  void resetLeft(){
+  counterL = 0;
+  }
+  
+  void resetFront(){
+  counterF = 0;
+}
+
+void escape(){
+  stop();
+  goBackwards(100);
+  delay(200);
+  turnLeft(100);
+  int distanceFront = frontSensor.read();
+  int distanceLeft = leftSensor.read();
+  movementDecision(distanceFront,distanceLeft);
+  
+}
+
+  // Moving POC
+//void loop() {
+//  int distanceFront = frontSensor.read();
+//  int distanceLeft = leftSensor.read();
+//
+//  if(distanceFront < Threshold){
+//    stop();
+//  }
+//  else
+//  {
+//    //move forward
+//    goForward(100);
+//    delay(50);
+//    stop();
+//  }
+//}
